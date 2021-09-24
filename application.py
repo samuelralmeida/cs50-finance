@@ -41,6 +41,8 @@ db = SQL("sqlite:///finance.db")
 if not os.environ.get("API_KEY"):
     raise RuntimeError("API_KEY not set")
 
+BUYTYPE = 'B'
+
 
 @app.route("/")
 @login_required
@@ -53,7 +55,48 @@ def index():
 @login_required
 def buy():
     """Buy shares of stock"""
-    return apology("TODO")
+
+    # User reached route via POST (as by submitting a form via POST)
+    if request.method == "POST":
+
+        symbol = request.form.get("symbol")
+        shares = request.form.get("shares")
+
+        # validations
+        if not symbol:
+            return apology("must provide symbol", 403)
+
+        if not shares.isdigit() or int(shares) < 0:
+            return apology("shares must be apositive integer", 403)
+
+        quote = lookup(symbol)
+        if not quote:
+            return apology("quote not found", 404)
+
+        rows = db.execute(
+            "SELECT cash FROM users WHERE id = ?", session["user_id"]
+        )
+
+        cash = rows[0]['cash']
+        total_price = int(shares) * quote['price']
+        if total_price > cash:
+            return apology("not cash enough", 403)
+
+        cash = cash - total_price
+        db.execute(
+            "UPDATE users SET cash = ? WHERE id = ?", cash, session["user_id"]
+        )
+
+        db.execute(
+            "INSERT INTO purchases (price, type, shares, user_id) VALUES (?, ?, ?, ?)",
+            quote['price'], BUYTYPE, int(shares), session["user_id"]
+        )
+
+        return redirect("/")
+
+    # User reached route via GET (as by clicking a link or via redirect)
+    else:
+        return render_template("buy.html")
 
 
 @app.route("/history")
@@ -82,7 +125,8 @@ def login():
             return apology("must provide password", 403)
 
         # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE username = ?", request.form.get("username"))
+        rows = db.execute("SELECT * FROM users WHERE username = ?",
+                          request.form.get("username"))
 
         # Ensure username exists and password is correct
         if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
@@ -114,13 +158,60 @@ def logout():
 @login_required
 def quote():
     """Get stock quote."""
-    return apology("TODO")
+    # User reached route via POST (as by submitting a form via POST)
+    if request.method == "POST":
+
+        symbol = request.form.get("symbol")
+
+        if not symbol:
+            return apology("must provide symbol", 403)
+
+        quote = lookup(symbol)
+        if not quote:
+            return apology("quote not found", 404)
+
+        return render_template("quoted.html", quote=quote)
+
+    # User reached route via GET (as by clicking a link or via redirect)
+    else:
+        return render_template("quote.html")
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """Register user"""
-    return apology("TODO")
+
+    # User reached route via POST (as by submitting a form via POST)
+    if request.method == "POST":
+
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        # Ensure username was submitted
+        if not username:
+            return apology("must provide username", 403)
+
+        # Ensure password was submitted
+        elif not password:
+            return apology("must provide password", 403)
+
+         # Query database for username
+        rows = db.execute("SELECT * FROM users WHERE username = ?", username)
+        if len(rows) > 0:
+            return apology("username already exists", 403)
+
+        _id = db.execute("INSERT INTO users (username, hash) VALUES (?, ?);",
+                         username, generate_password_hash(password))
+
+        # Remember which user has logged in
+        session["user_id"] = _id
+
+        # Redirect user to home page
+        return redirect("/")
+
+    # User reached route via GET (as by clicking a link or via redirect)
+    else:
+        return render_template("register.html")
 
 
 @app.route("/sell", methods=["GET", "POST"])
