@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Index
+{% endblock %}
+
+{% block main %}
+    <div>
+        <ul class="list-group list-group-horizontal">
+            <li class="list-group-item">Cash: {{ totals.cash | usd }}</li>
+            <li class="list-group-item">Pocket: {{ totals.pocket | usd }}</li>
+            <li class="list-group-item">Total: {{ totals.grand | usd}}</li>
+        </ul>
+    </div>
+    <hr>
+    <div>
+        <table class="table">
+            <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Symbol</th>
+                    <th scope="col">Shares</th>
+                    <th scope="col">Current Price</th>
+                    <th scope="col">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in pocket %}
+                <tr>
+                    <td>{{ stock.symbol }}</td>
+                    <td>{{ stock.shares }}</td>
+                    <td>{{ stock.current_price | usd }}</td>
+                    <td>{{ stock.total_value | usd }}</td>
+                </tr>    
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

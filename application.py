@@ -41,14 +41,46 @@ db = SQL("sqlite:///finance.db")
 if not os.environ.get("API_KEY"):
     raise RuntimeError("API_KEY not set")
 
-BUYTYPE = 'B'
+BUY_CATEGORY = 'B'
+SELL_CATEGORY = 'S'
 
 
 @app.route("/")
 @login_required
 def index():
     """Show portfolio of stocks"""
-    return apology("TODO")
+    pocket = db.execute("""
+        SELECT symbol, shares
+        FROM (
+	        SELECT t.symbol, SUM(CASE WHEN t.category = ? THEN t.share WHEN t.category = ? THEN -t.share ELSE 0 END) AS shares
+	        FROM transactions t
+	        WHERE t.user_id = ?
+	        GROUP BY t.symbol
+        ) r
+        WHERE r.shares > 0
+        ORDER BY r.symbol ASC
+    """, BUY_CATEGORY, SELL_CATEGORY, session["user_id"])
+
+    rows = db.execute(
+        "SELECT cash FROM users WHERE id = ?", session["user_id"]
+    )
+
+    total_pocket = 0
+
+    for stock in pocket:
+        quote = lookup(stock["symbol"])
+        stock["current_price"] = quote['price']
+        stock["total_value"] = stock["shares"] * quote['price']
+        total_pocket += stock["total_value"]
+
+    cash = rows[0]["cash"]
+    totals = {
+        "cash": cash,
+        "pocket": total_pocket,
+        "grand": cash + total_pocket
+    }
+
+    return render_template("index.html", pocket=pocket, totals=totals)
 
 
 @app.route("/buy", methods=["GET", "POST"])
@@ -84,12 +116,27 @@ def buy():
 
         cash = cash - total_price
         db.execute(
-            "UPDATE users SET cash = ? WHERE id = ?", cash, session["user_id"]
+            "UPDATE users SET cash = ? WHERE id = ?",
+            cash,
+            session["user_id"]
         )
 
         db.execute(
-            "INSERT INTO purchases (price, type, shares, user_id) VALUES (?, ?, ?, ?)",
-            quote['price'], BUYTYPE, int(shares), session["user_id"]
+            "INSERT INTO transactions (symbol, price, share, category, user_id) VALUES (?, ?, ?, ?, ?)",
+            symbol,
+            quote['price'],
+            int(shares),
+            BUY_CATEGORY,
+            session["user_id"]
+        )
+
+        db.execute(
+            "INSERT INTO transactions (symbol, price, share, category, user_id) VALUES (?, ?, ?, ?, ?)",
+            symbol,
+            quote['price'],
+            int(shares),
+            BUY_CATEGORY,
+            session["user_id"]
         )
 
         return redirect("/")
