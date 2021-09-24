@@ -6,7 +6,7 @@ Implement a website via which users can “buy” and “sell” stocks.
 
 Using https://iexcloud.io/ API.
 
-
+**Projeto em desenvolviemnto**
 ### Run
 
 - Python 3.9.6
