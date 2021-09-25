@@ -86,14 +86,14 @@ def buy():
 
         # validations
         if not symbol:
-            return apology("must provide symbol", 403)
+            return apology("must provide symbol", 400)
 
         if not shares.isdigit() or int(shares) < 0:
-            return apology("shares must be apositive integer", 403)
+            return apology("shares must be apositive integer", 400)
 
         quote = lookup(symbol)
         if not quote:
-            return apology("quote not found", 404)
+            return apology("quote not found", 400)
 
         rows = db.execute(
             "SELECT cash FROM users WHERE id = ?", session["user_id"]
@@ -131,6 +131,7 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
+
     transactions = db.execute("""
         SELECT symbol, price, share, category, created_at
         FROM transactions
@@ -199,11 +200,11 @@ def quote():
         symbol = request.form.get("symbol")
 
         if not symbol:
-            return apology("must provide symbol", 403)
+            return apology("must provide symbol", 400)
 
         quote = lookup(symbol)
         if not quote:
-            return apology("quote not found", 404)
+            return apology("quote not found", 400)
 
         return render_template("quoted.html", quote=quote)
 
@@ -221,19 +222,23 @@ def register():
 
         username = request.form.get("username")
         password = request.form.get("password")
+        confirmation = request.form.get("confirmation")
 
         # Ensure username was submitted
         if not username:
-            return apology("must provide username", 403)
+            return apology("must provide username", 400)
 
         # Ensure password was submitted
         elif not password:
-            return apology("must provide password", 403)
+            return apology("must provide password", 400)
+
+        elif password != confirmation:
+            return apology("password and confirmation must be the same", 400)
 
          # Query database for username
         rows = db.execute("SELECT * FROM users WHERE username = ?", username)
         if len(rows) > 0:
-            return apology("username already exists", 403)
+            return apology("username already exists", 400)
 
         _id = db.execute("INSERT INTO users (username, hash) VALUES (?, ?);",
                          username, generate_password_hash(password))
@@ -260,18 +265,18 @@ def sell():
         shares = request.form.get("shares")
 
         if not symbol:
-            return apology("must select a stock", 403)
+            return apology("must select a stock", 400)
 
         if not shares.isdigit() or int(shares) < 0:
-            return apology("shares must be apositive integer", 403)
+            return apology("shares must be apositive integer", 400)
 
         pocket = getPocket(symbol)
 
         if not pocket:
-            return apology("you do not have this stock in pocket", 403)
+            return apology("you do not have this stock in pocket", 400)
 
         if int(shares) > pocket[0]["shares"]:
-            return apology("volume of shares exceeded", 403)
+            return apology("volume of shares exceeded", 400)
 
         quote = lookup(symbol)
         total_sell = int(shares) * quote['price']
