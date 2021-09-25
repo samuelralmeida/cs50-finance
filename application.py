@@ -49,17 +49,7 @@ SELL_CATEGORY = 'S'
 @login_required
 def index():
     """Show portfolio of stocks"""
-    pocket = db.execute("""
-        SELECT symbol, shares
-        FROM (
-	        SELECT t.symbol, SUM(CASE WHEN t.category = ? THEN t.share WHEN t.category = ? THEN -t.share ELSE 0 END) AS shares
-	        FROM transactions t
-	        WHERE t.user_id = ?
-	        GROUP BY t.symbol
-        ) r
-        WHERE r.shares > 0
-        ORDER BY r.symbol ASC
-    """, BUY_CATEGORY, SELL_CATEGORY, session["user_id"])
+    pocket = getPocket()
 
     rows = db.execute(
         "SELECT cash FROM users WHERE id = ?", session["user_id"]
@@ -118,15 +108,6 @@ def buy():
         db.execute(
             "UPDATE users SET cash = ? WHERE id = ?",
             cash,
-            session["user_id"]
-        )
-
-        db.execute(
-            "INSERT INTO transactions (symbol, price, share, category, user_id) VALUES (?, ?, ?, ?, ?)",
-            symbol,
-            quote['price'],
-            int(shares),
-            BUY_CATEGORY,
             session["user_id"]
         )
 
@@ -265,7 +246,48 @@ def register():
 @login_required
 def sell():
     """Sell shares of stock"""
-    return apology("TODO")
+
+    # User reached route via POST (as by submitting a form via POST)
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        shares = request.form.get("shares")
+
+        if not symbol:
+            return apology("must select a stock", 403)
+
+        if not shares.isdigit() or int(shares) < 0:
+            return apology("shares must be apositive integer", 403)
+
+        pocket = getPocket(symbol)
+
+        if not pocket:
+            return apology("you do not have this stock in pocket", 403)
+
+        if int(shares) > pocket[0]["shares"]:
+            return apology("volume of shares exceeded", 403)
+
+        quote = lookup(symbol)
+        total_sell = int(shares) * quote['price']
+
+        db.execute(
+            "UPDATE users SET cash = (cash + ?) WHERE id = ?",
+            total_sell,
+            session["user_id"]
+        )
+
+        db.execute(
+            "INSERT INTO transactions (symbol, price, share, category, user_id) VALUES (?, ?, ?, ?, ?)",
+            symbol,
+            quote['price'],
+            int(shares),
+            SELL_CATEGORY,
+            session["user_id"]
+        )
+
+        return redirect("/")
+    else:
+        pocket = getPocket()
+        return render_template("sell.html", pocket=pocket)
 
 
 def errorhandler(e):
@@ -273,6 +295,27 @@ def errorhandler(e):
     if not isinstance(e, HTTPException):
         e = InternalServerError()
     return apology(e.name, e.code)
+
+
+def getPocket(symbol=None):
+    query = """
+        SELECT symbol, shares
+        FROM (
+	        SELECT t.symbol, SUM(CASE WHEN t.category = ? THEN t.share WHEN t.category = ? THEN -t.share ELSE 0 END) AS shares
+	        FROM transactions t
+	        WHERE t.user_id = ?
+	        GROUP BY t.symbol
+        ) r
+        WHERE r.shares > 0{}
+        ORDER BY r.symbol ASC
+    """
+
+    whereSymbol = ""
+    if symbol:
+        whereSymbol = " AND r.symbol = '{}'".format(symbol)
+
+    query = query.format(whereSymbol)
+    return db.execute(query, BUY_CATEGORY, SELL_CATEGORY, session["user_id"])
 
 
 # Listen for errors
