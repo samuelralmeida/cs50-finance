@@ -41,8 +41,8 @@ db = SQL("sqlite:///finance.db")
 if not os.environ.get("API_KEY"):
     raise RuntimeError("API_KEY not set")
 
-BUY_CATEGORY = 'B'
-SELL_CATEGORY = 'S'
+BUY_CATEGORY = 'Bought'
+SELL_CATEGORY = 'Sold'
 
 
 @app.route("/")
@@ -131,7 +131,14 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
-    return apology("TODO")
+    transactions = db.execute("""
+        SELECT symbol, price, share, category, created_at
+        FROM transactions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    """, session["user_id"])
+
+    return render_template("history.html", transactions=transactions)
 
 
 @app.route("/login", methods=["GET", "POST"])
